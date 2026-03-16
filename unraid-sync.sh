@@ -1,10 +1,16 @@
 #!/bin/bash
 # ============================================================================
-# Tautulli Database Safe Backup & Sync Script for Unraid
+# Tautulli Database Safe Backup & Sync Script for Unraid  [OPTIONAL]
 # ============================================================================
-# Run this via Unraid User Scripts (scheduled or on demand).
-# It safely copies the live Tautulli DB, starts the sync container,
-# waits for the sync to complete, then stops the container again.
+# This script is OPTIONAL. The Docker container can now handle the safe DB
+# copy internally by mounting the live Tautulli appdata folder read-only.
+#
+# Use this script if:
+# - You prefer explicit control over when the DB copy happens
+# - The container can't read the Tautulli appdata folder (permission issues)
+# - You want the sync triggered externally rather than by the internal cron
+#
+# Run via Unraid User Scripts (scheduled or on demand).
 # ============================================================================
 
 # ============================================================================
