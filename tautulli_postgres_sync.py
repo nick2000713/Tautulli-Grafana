@@ -5,15 +5,16 @@ Tautulli to PostgreSQL Sync Script
 Synchronizes Tautulli SQLite database to PostgreSQL for Grafana analytics
 
 Features:
+- Internal safe SQLite backup before every sync (safe against live DB)
 - Automatic user mapping (handles username changes)
 - Full schema sync with indexes
 - Incremental sync (only new data)
 - Configurable via environment variables or JSON file
 
-Usage in Unraid User Scripts:
-- Set to run daily (or as needed)
-- Requires PostgreSQL container running
-- First run: Full import (may take time with 5 years of data)
+Usage:
+- Mount the live Tautulli DB read-only: -v /appdata/tautulli:/tautulli:ro
+- Or use the unraid-sync.sh User Script to pre-copy the DB (optional)
+- First run: Full import (may take time with years of data)
 - Subsequent runs: Only sync new data
 
 Author: Community project for Plex monitoring
@@ -34,7 +35,13 @@ import json
 # ============================================================================
 
 # Tautulli Database
-TAUTULLI_DB = os.getenv('TAUTULLI_DB', '/data/tautulli.db')
+# Can point to a live DB (e.g. /tautulli/tautulli.db mounted read-only)
+# or a pre-copied DB created by the optional unraid-sync.sh User Script.
+# Either way, the script creates an internal safe backup before syncing.
+TAUTULLI_DB = os.getenv('TAUTULLI_DB', '/tautulli/tautulli.db')
+
+# Internal backup path — the script always syncs from this copy, never the live file
+TAUTULLI_DB_BACKUP = '/tmp/tautulli_sync_backup.db'
 
 # PostgreSQL Connection
 POSTGRES_CONFIG = {
@@ -107,6 +114,48 @@ def normalize_username(username):
     return USER_MAPPING.get(username, username)
 
 # ============================================================================
+# SAFE SQLITE BACKUP
+# ============================================================================
+
+def create_safe_backup():
+    """Create an internal safe copy of the Tautulli SQLite DB before syncing.
+
+    Uses Python's built-in sqlite3.backup() — safe to run against a live,
+    actively written database. The sync always runs against this copy,
+    never the source file directly.
+    """
+    import shutil
+
+    if not os.path.exists(TAUTULLI_DB):
+        logging.error(f"Source database not found: {TAUTULLI_DB}")
+        sys.exit(1)
+
+    source_size_mb = os.path.getsize(TAUTULLI_DB) / (1024 * 1024)
+    logging.info(f"Creating safe internal backup of: {TAUTULLI_DB} ({source_size_mb:.1f} MB)")
+
+    try:
+        source_conn = sqlite3.connect(TAUTULLI_DB)
+        backup_conn = sqlite3.connect(TAUTULLI_DB_BACKUP)
+        source_conn.backup(backup_conn)
+        backup_conn.close()
+        source_conn.close()
+
+        backup_size_mb = os.path.getsize(TAUTULLI_DB_BACKUP) / (1024 * 1024)
+        logging.info(f"Backup created: {TAUTULLI_DB_BACKUP} ({backup_size_mb:.1f} MB)")
+    except Exception as e:
+        logging.error(f"Failed to create backup: {e}")
+        sys.exit(1)
+
+def cleanup_backup():
+    """Remove the temporary backup file after sync."""
+    try:
+        if os.path.exists(TAUTULLI_DB_BACKUP):
+            os.remove(TAUTULLI_DB_BACKUP)
+            logging.info("Temporary backup cleaned up")
+    except Exception as e:
+        logging.warning(f"Could not remove temporary backup: {e}")
+
+# ============================================================================
 # SETUP LOGGING
 # ============================================================================
 
@@ -129,14 +178,14 @@ def setup_logging():
 # ============================================================================
 
 def get_sqlite_connection():
-    """Connect to Tautulli SQLite database"""
+    """Connect to the internal SQLite backup (never the live source file)"""
     try:
-        conn = sqlite3.connect(TAUTULLI_DB)
+        conn = sqlite3.connect(TAUTULLI_DB_BACKUP)
         conn.row_factory = sqlite3.Row
-        logging.info(f"Connected to SQLite: {TAUTULLI_DB}")
+        logging.info(f"Connected to SQLite backup: {TAUTULLI_DB_BACKUP}")
         return conn
     except sqlite3.Error as e:
-        logging.error(f"Failed to connect to SQLite: {e}")
+        logging.error(f"Failed to connect to SQLite backup: {e}")
         sys.exit(1)
 
 def get_postgres_connection():
@@ -418,18 +467,22 @@ def sync_table(sqlite_conn, pg_conn, table_name):
 def main():
     """Main sync process"""
     setup_logging()
-    
+
     logging.info("=" * 70)
     logging.info("Tautulli to PostgreSQL Sync - Starting")
     logging.info("=" * 70)
-    
+
     # Load user mapping
     load_user_mapping()
-    
-    # Connect to databases
+
+    # Step 1: Create a safe internal backup of the source DB
+    # This is safe against a live/actively-used Tautulli database
+    create_safe_backup()
+
+    # Connect to databases (SQLite connection uses the backup, not the live file)
     sqlite_conn = get_sqlite_connection()
     pg_conn = get_postgres_connection()
-    
+
     try:
         # Create schema if needed
         create_postgres_schema(pg_conn, sqlite_conn)
@@ -452,6 +505,7 @@ def main():
     finally:
         sqlite_conn.close()
         pg_conn.close()
+        cleanup_backup()
 
 if __name__ == '__main__':
     main()
