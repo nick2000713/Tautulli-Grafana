@@ -1,0 +1,44 @@
+# Screenshots & personal media (allow only named preview files)
+*.jpg
+*.jpeg
+*.gif
+Screenshot*
+!preview-*.png
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+secrets.json
+
+# User mapping with real usernames
+user_mapping.json
+config/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes / data
+data/

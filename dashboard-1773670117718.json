@@ -1,0 +1,1535 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2beta1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "ad9c9sq",
+    "generation": 3,
+    "creationTimestamp": "2026-03-16T13:38:43Z",
+    "labels": {},
+    "annotations": {}
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "query": {
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH grouped_sessions AS (\r\n    SELECT \r\n        sh.reference_id,\r\n        sh.media_type,\r\n        shm.title,\r\n        shm.grandparent_title,\r\n        SUM(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                ELSE 0 \r\n            END\r\n        ) - SUM(COALESCE(sh.paused_counter, 0)) as duration\r\n    FROM session_history sh\r\n    JOIN session_history_metadata shm ON sh.id = shm.id\r\n    WHERE sh.stopped > 0\r\n        AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n        AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n        -- User Filter\r\n        AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n        -- Content Type Filter\r\n        AND (\r\n            '${content_type}' = 'all'\r\n            OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n            OR ('${content_type}' = 'movies' AND sh.media_type = 'movie')\r\n            OR ('${content_type}' = 'music' AND sh.media_type = 'track')\r\n        )\r\n        -- Series Filter (nur für episodes)\r\n        AND (\r\n            '${content_type}' != 'episodes'\r\n            OR $g$${series}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${series:sqlstring})\r\n        )\r\n        -- Movie Filter (nur für movies)\r\n        AND (\r\n            '${content_type}' != 'movies'\r\n            OR $g$${movie}$g$ = 'All'\r\n            OR shm.title IN (${movie:sqlstring})\r\n        )\r\n        -- Artist Filter (nur für music)\r\n        AND (\r\n            '${content_type}' != 'music'\r\n            OR $g$${artist}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${artist:sqlstring})\r\n        )\r\n    GROUP BY sh.reference_id, sh.media_type, shm.title, shm.grandparent_title\r\n),\r\naggregated AS (\r\n    SELECT \r\n        -- Bei 'all': Füge Content Type Tag hinzu, sonst normal\r\n        CASE \r\n            WHEN '${content_type}' = 'all' THEN\r\n                CASE \r\n                    WHEN media_type = 'episode' THEN grandparent_title || ' [TV]'\r\n                    WHEN media_type = 'movie' THEN title || ' [Movie]'\r\n                    WHEN media_type = 'track' THEN grandparent_title || ' [Music]'\r\n                END\r\n            ELSE\r\n                CASE \r\n                    WHEN media_type = 'episode' THEN grandparent_title\r\n                    WHEN media_type = 'movie' THEN title\r\n                    WHEN media_type = 'track' THEN grandparent_title\r\n                END\r\n        END as \"Title\",\r\n        COUNT(*) as plays,\r\n        ROUND(SUM(duration) / 3600.0, 1) as hours\r\n    FROM grouped_sessions\r\n    GROUP BY \r\n        CASE \r\n            WHEN '${content_type}' = 'all' THEN\r\n                CASE \r\n                    WHEN media_type = 'episode' THEN grandparent_title || ' [TV]'\r\n                    WHEN media_type = 'movie' THEN title || ' [Movie]'\r\n                    WHEN media_type = 'track' THEN grandparent_title || ' [Music]'\r\n                END\r\n            ELSE\r\n                CASE \r\n                    WHEN media_type = 'episode' THEN grandparent_title\r\n                    WHEN media_type = 'movie' THEN title\r\n                    WHEN media_type = 'track' THEN grandparent_title\r\n                END\r\n        END,\r\n        media_type\r\n)\r\nSELECT \r\n    \"Title\",\r\n    CASE \r\n        WHEN ${top_sort_by:singlequote} = 'plays' THEN plays\r\n        WHEN ${top_sort_by:singlequote} = 'hours' THEN hours::integer\r\n    END as \"Value\"\r\nFROM aggregated\r\nWHERE \"Title\" IS NOT NULL\r\nORDER BY \r\n    CASE \r\n        WHEN ${top_sort_by:singlequote} = 'plays' THEN plays\r\n        WHEN ${top_sort_by:singlequote} = 'hours' THEN hours::integer\r\n    END DESC\r\nLIMIT COALESCE(NULLIF(${top_limit}, 0), 999999)",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 13,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "Value",
+                          "Gotham",
+                          "Blue Mountain State"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": false,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "displayLabels": [
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true,
+                  "values": [
+                    "value"
+                  ]
+                },
+                "pieType": "donut",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": true
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-14": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH grouped_sessions AS (\r\n    SELECT \r\n        sh.reference_id,\r\n        sh.\"user\",\r\n        sh.media_type,\r\n        shm.title,\r\n        shm.grandparent_title,\r\n        SUM(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                ELSE 0 \r\n            END\r\n        ) - SUM(COALESCE(sh.paused_counter, 0)) as duration\r\n    FROM session_history sh\r\n    JOIN session_history_metadata shm ON sh.id = shm.id\r\n    WHERE sh.stopped > 0\r\n        AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n        AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n        AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n        AND (\r\n            '${content_type}' = 'all'\r\n            OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n            OR ('${content_type}' = 'movies' AND sh.media_type = 'movie')\r\n            OR ('${content_type}' = 'music' AND sh.media_type = 'track')\r\n        )\r\n        AND (\r\n            '${content_type}' != 'episodes'\r\n            OR $g$${series}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${series:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'movies'\r\n            OR $g$${movie}$g$ = 'All'\r\n            OR shm.title IN (${movie:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'music'\r\n            OR $g$${artist}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${artist:sqlstring})\r\n        )\r\n    GROUP BY sh.reference_id, sh.\"user\", sh.media_type, shm.title, shm.grandparent_title\r\n)\r\nSELECT \r\n    \"user\" as \"User\",\r\n    CASE \r\n        WHEN ${top_sort_by:singlequote} = 'plays' THEN COUNT(DISTINCT reference_id)\r\n        WHEN ${top_sort_by:singlequote} = 'hours' THEN ROUND(SUM(duration) / 3600.0)::integer\r\n    END as \"Value\"\r\nFROM grouped_sessions\r\nGROUP BY \"user\"\r\nORDER BY \"Value\" DESC\r\nLIMIT COALESCE(NULLIF(${top_limit}, 0), 999999)",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 14,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "plays",
+                          "hours",
+                          "Value",
+                          "fabricebalzan",
+                          "dari435"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": false,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "displayLabels": [
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true,
+                  "values": [
+                    "value"
+                  ]
+                },
+                "pieType": "donut",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": true
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-17": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH time_series AS (\r\n  SELECT generate_series(\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(${__from} / 1000)),\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(${__to} / 1000)),\r\n    ('1 ' || ${interval_group:singlequote})::interval\r\n  ) AS \"time\"\r\n),\r\ngrouped_sessions AS (\r\n  SELECT\r\n    sh.reference_id,\r\n    sh.media_type,\r\n    ls.section_name,\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(sh.started)) AS \"time\",\r\n    SUM(\r\n      CASE WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) ELSE 0 END\r\n    ) - SUM(COALESCE(sh.paused_counter, 0)) AS duration\r\n  FROM session_history sh\r\n  JOIN session_history_metadata shm ON sh.id = shm.id\r\n  LEFT JOIN library_sections ls ON sh.section_id = ls.section_id\r\n  WHERE sh.stopped > 0\r\n    AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n    AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n    AND (\r\n      '${content_type}' = 'all'\r\n      OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n      OR ('${content_type}' = 'movies'   AND sh.media_type = 'movie')\r\n      OR ('${content_type}' = 'music'    AND sh.media_type = 'track')\r\n    )\r\n    AND (\r\n      '${content_type}' != 'episodes'\r\n      OR $g$${series}$g$ = 'All'\r\n      OR shm.grandparent_title IN (${series:sqlstring})\r\n    )\r\n    AND (\r\n      '${content_type}' != 'movies'\r\n      OR $g$${movie}$g$ = 'All'\r\n      OR shm.title IN (${movie:sqlstring})\r\n    )\r\n    AND (\r\n      '${content_type}' != 'music'\r\n      OR $g$${artist}$g$ = 'All'\r\n      OR shm.grandparent_title IN (${artist:sqlstring})\r\n    )\r\n    AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n  GROUP BY 1,2,3,4\r\n),\r\nstats AS (\r\n  SELECT\r\n    \"time\",\r\n    CASE\r\n      WHEN ${detail_level:singlequote} = 'type' THEN\r\n        CASE media_type\r\n          WHEN 'episode' THEN 'TV Shows'\r\n          WHEN 'movie'   THEN 'Movies'\r\n          WHEN 'track'   THEN 'Music'\r\n          ELSE 'Other'\r\n        END\r\n\r\n      WHEN ${detail_level:singlequote} = 'library' THEN\r\n        CASE\r\n          WHEN media_type = 'episode' THEN\r\n            'TV - ' ||\r\n            CASE\r\n              WHEN lower(COALESCE(section_name,'')) LIKE '%anime%' THEN 'Anime'\r\n              ELSE COALESCE(section_name, 'Unknown')\r\n            END\r\n          WHEN media_type = 'movie' THEN 'Movies - ' || COALESCE(section_name, 'Unknown')\r\n          WHEN media_type = 'track' THEN 'Music - '  || COALESCE(section_name, 'Unknown')\r\n          ELSE 'Other - ' || COALESCE(section_name, 'Unknown')\r\n        END\r\n\r\n      ELSE 'TV Shows'\r\n    END AS metric,\r\n\r\n    COUNT(DISTINCT reference_id) AS plays,\r\n    ROUND(SUM(duration) / 3600.0, 1) AS hours\r\n  FROM grouped_sessions\r\n  GROUP BY 1,2\r\n),\r\nall_metrics AS (\r\n  SELECT DISTINCT metric FROM stats\r\n),\r\ntime_metric_matrix AS (\r\n  SELECT ts.time, am.metric\r\n  FROM time_series ts\r\n  CROSS JOIN all_metrics am\r\n)\r\nSELECT\r\n  tmm.time,\r\n  tmm.metric,\r\n  COALESCE(\r\n    CASE\r\n      WHEN ${top_sort_by:singlequote} = 'plays' THEN s.plays\r\n      WHEN ${top_sort_by:singlequote} = 'hours' THEN s.hours::integer\r\n    END,\r\n    0\r\n  ) AS value\r\nFROM time_metric_matrix tmm\r\nLEFT JOIN stats s\r\n  ON tmm.time = s.time AND tmm.metric = s.metric\r\nORDER BY tmm.time, tmm.metric;\r\n",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 17,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "barchart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "fillOpacity": 48,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "lineWidth": 2,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "barRadius": 0.05,
+                "barWidth": 0.97,
+                "fullHighlight": false,
+                "groupWidth": 0.7,
+                "legend": {
+                  "calcs": [
+                    "sum"
+                  ],
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "orientation": "auto",
+                "showValue": "never",
+                "stacking": "normal",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "none",
+                  "sort": "none"
+                },
+                "xTickLabelRotation": 0,
+                "xTickLabelSpacing": 100
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-18": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "alias": "",
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "",
+                        "rawQuery": true,
+                        "rawSql": "WITH time_series AS (\r\n  SELECT generate_series(\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(${__from} / 1000)),\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(${__to} / 1000)),\r\n    ('1 ' || ${interval_group:singlequote})::interval\r\n  ) AS \"time\"\r\n),\r\ngrouped_sessions AS (\r\n  SELECT\r\n    sh.reference_id,\r\n    sh.media_type,\r\n    ls.section_name,\r\n    date_trunc(${interval_group:singlequote}, to_timestamp(sh.started)) AS \"time\",\r\n    SUM(\r\n      CASE WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) ELSE 0 END\r\n    ) - SUM(COALESCE(sh.paused_counter, 0)) AS duration\r\n  FROM session_history sh\r\n  JOIN session_history_metadata shm ON sh.id = shm.id\r\n  LEFT JOIN library_sections ls ON sh.section_id = ls.section_id\r\n  WHERE sh.stopped > 0\r\n    AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n    AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n    AND (\r\n      '${content_type}' = 'all'\r\n      OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n      OR ('${content_type}' = 'movies'   AND sh.media_type = 'movie')\r\n      OR ('${content_type}' = 'music'    AND sh.media_type = 'track')\r\n    )\r\n    AND (\r\n      '${content_type}' != 'episodes'\r\n      OR $g$${series}$g$ = 'All'\r\n      OR shm.grandparent_title IN (${series:sqlstring})\r\n    )\r\n    AND (\r\n      '${content_type}' != 'movies'\r\n      OR $g$${movie}$g$ = 'All'\r\n      OR shm.title IN (${movie:sqlstring})\r\n    )\r\n    AND (\r\n      '${content_type}' != 'music'\r\n      OR $g$${artist}$g$ = 'All'\r\n      OR shm.grandparent_title IN (${artist:sqlstring})\r\n    )\r\n    AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n  GROUP BY 1,2,3,4\r\n),\r\nstats AS (\r\n  SELECT\r\n    \"time\",\r\n    CASE\r\n      WHEN ${detail_level:singlequote} = 'type' THEN\r\n        CASE media_type\r\n          WHEN 'episode' THEN 'TV Shows'\r\n          WHEN 'movie'   THEN 'Movies'\r\n          WHEN 'track'   THEN 'Music'\r\n          ELSE 'Other'\r\n        END\r\n\r\n      WHEN ${detail_level:singlequote} = 'library' THEN\r\n        CASE\r\n          WHEN media_type = 'episode' THEN\r\n            'TV - ' ||\r\n            CASE\r\n              WHEN lower(COALESCE(section_name,'')) LIKE '%anime%' THEN 'Anime'\r\n              ELSE COALESCE(section_name, 'Unknown')\r\n            END\r\n          WHEN media_type = 'movie' THEN 'Movies - ' || COALESCE(section_name, 'Unknown')\r\n          WHEN media_type = 'track' THEN 'Music - '  || COALESCE(section_name, 'Unknown')\r\n          ELSE 'Other - ' || COALESCE(section_name, 'Unknown')\r\n        END\r\n\r\n      ELSE 'TV Shows'\r\n    END AS metric,\r\n\r\n    COUNT(DISTINCT reference_id) AS plays,\r\n    ROUND(SUM(duration) / 3600.0, 1) AS hours\r\n  FROM grouped_sessions\r\n  GROUP BY 1,2\r\n),\r\nall_metrics AS (\r\n  SELECT DISTINCT metric FROM stats\r\n),\r\ntime_metric_matrix AS (\r\n  SELECT ts.time, am.metric\r\n  FROM time_series ts\r\n  CROSS JOIN all_metrics am\r\n)\r\nSELECT\r\n  tmm.time,\r\n  tmm.metric,\r\n  COALESCE(\r\n    CASE\r\n      WHEN ${top_sort_by:singlequote} = 'plays' THEN s.plays\r\n      WHEN ${top_sort_by:singlequote} = 'hours' THEN s.hours::integer\r\n    END,\r\n    0\r\n  ) AS value\r\nFROM time_metric_matrix tmm\r\nLEFT JOIN stats s\r\n  ON tmm.time = s.time AND tmm.metric = s.metric\r\nORDER BY tmm.time, tmm.metric;\r\n",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "D"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 18,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "smooth",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 2,
+                    "pointSize": 8,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "decimals": 0,
+                  "min": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Music - Musik"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "super-light-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "TV - Serien"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "TV - Anime"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byType",
+                      "options": "time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "hidden"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Movies - Filme"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Movies - Doku Filme"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "light-green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "TV - Doku Serien"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Movies"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Music"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "sum"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH time_series AS (\r\n    SELECT generate_series(\r\n        date_trunc(${interval_group:singlequote}, to_timestamp(${__from} / 1000)),\r\n        date_trunc(${interval_group:singlequote}, to_timestamp(${__to} / 1000)),\r\n        ('1 ' || ${interval_group:singlequote})::interval\r\n    ) AS \"time\"\r\n),\r\nwatch_data AS (\r\n    SELECT\r\n        date_trunc(${interval_group:singlequote}, to_timestamp(sh.started)) AS \"time\",\r\n        COUNT(DISTINCT sh.reference_id) AS \"Anzahl Plays\",\r\n        ROUND(\r\n            (SUM(\r\n                CASE \r\n                    WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                    ELSE 0 \r\n                END\r\n            ) - SUM(COALESCE(sh.paused_counter, 0))) / 60.0,\r\n            1\r\n        ) AS \"Watch Minutes\",\r\n        ROUND(\r\n            (SUM(\r\n                CASE \r\n                    WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                    ELSE 0 \r\n                END\r\n            ) - SUM(COALESCE(sh.paused_counter, 0))) / 3600.0,\r\n            2\r\n        ) AS \"Watch Hours\",\r\n        ROUND(\r\n            AVG(\r\n                CASE \r\n                    WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) - COALESCE(sh.paused_counter, 0)\r\n                    ELSE NULL\r\n                END\r\n            ) / 60.0,\r\n            1\r\n        ) AS \"Avg Minutes per Play\"\r\n    FROM session_history sh\r\n    JOIN session_history_metadata shm ON sh.id = shm.id\r\n    WHERE sh.stopped > 0\r\n        AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n        AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n        AND (\r\n            '${content_type}' = 'all'\r\n            OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n            OR ('${content_type}' = 'movies' AND sh.media_type = 'movie')\r\n            OR ('${content_type}' = 'music' AND sh.media_type = 'track')\r\n        )\r\n        AND (\r\n            '${content_type}' != 'episodes'\r\n            OR $g$${series}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${series:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'movies'\r\n            OR $g$${movie}$g$ = 'All'\r\n            OR shm.title IN (${movie:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'music'\r\n            OR $g$${artist}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${artist:sqlstring})\r\n        )\r\n        AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n    GROUP BY 1\r\n)\r\nSELECT \r\n    ts.time,\r\n    COALESCE(wd.\"Anzahl Plays\", 0) AS \"Anzahl Plays\",\r\n    COALESCE(wd.\"Watch Minutes\", 0) AS \"Watch Minutes\",\r\n    COALESCE(wd.\"Watch Hours\", 0) AS \"Watch Hours\",\r\n    COALESCE(wd.\"Avg Minutes per Play\", 0) AS \"Avg Minutes per Play\"\r\nFROM time_series ts\r\nLEFT JOIN watch_data wd ON ts.time = wd.time\r\nORDER BY ts.time",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 6,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "barchart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "fillOpacity": 40,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "lineWidth": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "Anzahl Plays"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": false,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "barRadius": 0.05,
+                "barWidth": 0.97,
+                "fullHighlight": false,
+                "groupWidth": 0.7,
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "orientation": "auto",
+                "showValue": "auto",
+                "stacking": "normal",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "xTickLabelRotation": 0,
+                "xTickLabelSpacing": 100
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT \r\n    COUNT(DISTINCT sh.reference_id) as \"Total Plays\",\r\n    \r\n    COUNT(DISTINCT sh.\"user\") as \"Unique Users\",\r\n    \r\n    COUNT(DISTINCT \r\n        CASE \r\n            WHEN sh.media_type = 'episode' THEN shm.grandparent_title\r\n            WHEN sh.media_type = 'movie' THEN shm.title\r\n            WHEN sh.media_type = 'track' THEN shm.grandparent_title\r\n        END\r\n    ) as \"Unique Titles\",\r\n    \r\n    ROUND(\r\n        (SUM(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                ELSE 0 \r\n            END\r\n        ) - SUM(COALESCE(sh.paused_counter, 0))) / 3600.0,\r\n        1\r\n    ) as \"Total Hours\",\r\n    \r\n    ROUND(\r\n        (SUM(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                ELSE 0 \r\n            END\r\n        ) - SUM(COALESCE(sh.paused_counter, 0))) / 86400.0,\r\n        1\r\n    ) as \"Total Days\",\r\n    \r\n    ROUND(\r\n        AVG(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) - COALESCE(sh.paused_counter, 0)\r\n                ELSE NULL\r\n            END\r\n        ) / 60.0,\r\n        1\r\n    ) as \"Avg Minutes per Play\",\r\n    \r\n    COUNT(DISTINCT DATE(to_timestamp(sh.started))) as \"Active Days\"\r\n\r\nFROM session_history sh\r\nJOIN session_history_metadata shm ON sh.id = shm.id\r\nWHERE sh.stopped > 0\r\n    AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n    AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n    AND (\r\n        '${content_type}' = 'all'\r\n        OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n        OR ('${content_type}' = 'movies' AND sh.media_type = 'movie')\r\n        OR ('${content_type}' = 'music' AND sh.media_type = 'track')\r\n    )\r\n    AND (\r\n        '${content_type}' != 'episodes'\r\n        OR $g$${series}$g$ = 'All'\r\n        OR shm.grandparent_title IN (${series:sqlstring})\r\n    )\r\n    AND (\r\n        '${content_type}' != 'movies'\r\n        OR $g$${movie}$g$ = 'All'\r\n        OR shm.title IN (${movie:sqlstring})\r\n    )\r\n    AND (\r\n        '${content_type}' != 'music'\r\n        OR $g$${artist}$g$ = 'All'\r\n        OR shm.grandparent_title IN (${artist:sqlstring})\r\n    )\r\n    AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 7,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "group": "grafana-postgresql-datasource",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "dataset": "tautulli",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH grouped_sessions AS (\r\n    -- Gruppiere nach reference_id um Sessions zusammenzufassen\r\n    SELECT \r\n        sh.reference_id,\r\n        sh.media_type,\r\n        SUM(\r\n            CASE \r\n                WHEN sh.stopped > 0 THEN (sh.stopped - sh.started) \r\n                ELSE 0 \r\n            END\r\n        ) - SUM(COALESCE(sh.paused_counter, 0)) as duration\r\n    FROM session_history sh\r\n    JOIN session_history_metadata shm ON sh.id = shm.id\r\n    WHERE sh.stopped > 0\r\n        AND (sh.stopped - sh.started) >= ${ignore_interval}\r\n        AND ($g$${user}$g$ = 'All' OR sh.\"user\" IN (${user:sqlstring}))\r\n        AND (\r\n            '${content_type}' = 'all'\r\n            OR ('${content_type}' = 'episodes' AND sh.media_type = 'episode')\r\n            OR ('${content_type}' = 'movies' AND sh.media_type = 'movie')\r\n            OR ('${content_type}' = 'music' AND sh.media_type = 'track')\r\n        )\r\n        AND (\r\n            '${content_type}' != 'episodes'\r\n            OR $g$${series}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${series:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'movies'\r\n            OR $g$${movie}$g$ = 'All'\r\n            OR shm.title IN (${movie:sqlstring})\r\n        )\r\n        AND (\r\n            '${content_type}' != 'music'\r\n            OR $g$${artist}$g$ = 'All'\r\n            OR shm.grandparent_title IN (${artist:sqlstring})\r\n        )\r\n        AND sh.started BETWEEN (${__from} / 1000) AND (${__to} / 1000)\r\n    GROUP BY sh.reference_id, sh.media_type\r\n)\r\nSELECT \r\n    CASE \r\n        WHEN media_type = 'episode' THEN 'TV Shows'\r\n        WHEN media_type = 'movie' THEN 'Movies'\r\n        WHEN media_type = 'track' THEN 'Music'\r\n        ELSE media_type\r\n    END as \"Content Type\",\r\n    \r\n    COUNT(*) as \"Plays\",\r\n    \r\n    ROUND(SUM(duration) / 3600.0, 1) as \"Hours\",\r\n    \r\n    ROUND(AVG(duration) / 60.0, 1) as \"Avg Minutes\",\r\n    \r\n    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) as \"% of Total\"\r\n\r\nFROM grouped_sessions\r\nGROUP BY media_type\r\nORDER BY \"Hours\" DESC",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        }
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 8,
+          "links": [],
+          "title": "",
+          "vizConfig": {
+            "group": "barchart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "fillOpacity": 80,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "lineWidth": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Hours"
+                    },
+                    "properties": []
+                  },
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "Plays"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": false,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "barRadius": 0,
+                "barWidth": 0.97,
+                "fullHighlight": false,
+                "groupWidth": 0.7,
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "orientation": "horizontal",
+                "showValue": "never",
+                "stacking": "none",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "xTickLabelRotation": 0,
+                "xTickLabelSpacing": 0
+              }
+            },
+            "version": "12.3.0"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-7"
+              },
+              "height": 4,
+              "width": 24,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-13"
+              },
+              "height": 8,
+              "width": 9,
+              "x": 0,
+              "y": 4
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-18"
+              },
+              "height": 8,
+              "width": 15,
+              "x": 9,
+              "y": 4
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-14"
+              },
+              "height": 8,
+              "width": 9,
+              "x": 0,
+              "y": 12
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-6"
+              },
+              "height": 8,
+              "width": 15,
+              "x": 9,
+              "y": 12
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-17"
+              },
+              "height": 7,
+              "width": 12,
+              "x": 0,
+              "y": 20
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-8"
+              },
+              "height": 7,
+              "width": 12,
+              "x": 12,
+              "y": 20
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": [],
+    "timeSettings": {
+      "autoRefresh": "",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "fiscalYearStartMonth": 0,
+      "from": "2020-09-14T22:00:00.000Z",
+      "hideTimepicker": false,
+      "nowDelay": "6h",
+      "timezone": "browser",
+      "to": "now"
+    },
+    "title": "Tautulli 16_9",
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "definition": "SELECT DISTINCT \"user\" \nFROM session_history \nWHERE \"user\" IS NOT NULL \nORDER BY \"user\"",
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": true,
+          "name": "user",
+          "options": [],
+          "query": {
+            "group": "grafana-postgresql-datasource",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "SELECT DISTINCT \"user\" \nFROM session_history \nWHERE \"user\" IS NOT NULL \nORDER BY \"user\""
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": "alphabeticalAsc"
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "all",
+            "value": "all"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "content_type",
+          "options": [
+            {
+              "selected": true,
+              "text": "all",
+              "value": "all"
+            },
+            {
+              "selected": false,
+              "text": "episodes",
+              "value": "episodes"
+            },
+            {
+              "selected": false,
+              "text": "movies",
+              "value": "movies"
+            },
+            {
+              "selected": false,
+              "text": "music",
+              "value": "music"
+            }
+          ],
+          "query": "all,episodes,movies,music",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "definition": "SELECT DISTINCT shm.grandparent_title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE shm.grandparent_title IS NOT NULL \n  AND shm.grandparent_title != ''\n  AND sh.media_type = 'episode'\nORDER BY shm.grandparent_title",
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": true,
+          "name": "series",
+          "options": [],
+          "query": {
+            "group": "grafana-postgresql-datasource",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "SELECT DISTINCT shm.grandparent_title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE shm.grandparent_title IS NOT NULL \n  AND shm.grandparent_title != ''\n  AND sh.media_type = 'episode'\nORDER BY shm.grandparent_title"
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": "alphabeticalAsc"
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "definition": "SELECT DISTINCT shm.title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE sh.media_type = 'movie'\n  AND shm.title IS NOT NULL\nORDER BY shm.title",
+          "description": "",
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": true,
+          "name": "movie",
+          "options": [],
+          "query": {
+            "group": "grafana-postgresql-datasource",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "SELECT DISTINCT shm.title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE sh.media_type = 'movie'\n  AND shm.title IS NOT NULL\nORDER BY shm.title"
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": "alphabeticalAsc"
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "definition": "SELECT DISTINCT shm.grandparent_title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE sh.media_type = 'track'\n  AND shm.grandparent_title IS NOT NULL\nORDER BY shm.grandparent_title",
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": false,
+          "name": "artist",
+          "options": [],
+          "query": {
+            "group": "grafana-postgresql-datasource",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "SELECT DISTINCT shm.grandparent_title \nFROM session_history_metadata shm\nJOIN session_history sh ON sh.id = shm.id\nWHERE sh.media_type = 'track'\n  AND shm.grandparent_title IS NOT NULL\nORDER BY shm.grandparent_title"
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": "disabled"
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "month",
+            "value": "month"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "interval_group",
+          "options": [
+            {
+              "selected": false,
+              "text": "day",
+              "value": "day"
+            },
+            {
+              "selected": false,
+              "text": "week",
+              "value": "week"
+            },
+            {
+              "selected": true,
+              "text": "month",
+              "value": "month"
+            },
+            {
+              "selected": false,
+              "text": "year",
+              "value": "year"
+            }
+          ],
+          "query": "day,week,month,year",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "ConstantVariable",
+        "spec": {
+          "current": {
+            "text": "120",
+            "value": "120"
+          },
+          "description": "",
+          "hide": "hideVariable",
+          "name": "ignore_interval",
+          "query": "120",
+          "skipUrlSync": true
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "Play Count",
+            "value": "plays"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "top_sort_by",
+          "options": [
+            {
+              "selected": true,
+              "text": "Play Count",
+              "value": "plays"
+            },
+            {
+              "selected": false,
+              "text": "Watch Hours",
+              "value": "hours"
+            }
+          ],
+          "query": "Play Count : plays,Watch Hours : hours,",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "All",
+            "value": "0"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "top_limit",
+          "options": [
+            {
+              "selected": true,
+              "text": "All",
+              "value": "0"
+            },
+            {
+              "selected": false,
+              "text": "5",
+              "value": "5"
+            },
+            {
+              "selected": false,
+              "text": "10",
+              "value": "10"
+            },
+            {
+              "selected": false,
+              "text": "25",
+              "value": "25"
+            },
+            {
+              "selected": false,
+              "text": "50",
+              "value": "50"
+            }
+          ],
+          "query": "All : 0,5,10,25,50",
+          "skipUrlSync": false
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "current": {
+            "text": "library",
+            "value": "library"
+          },
+          "hide": "dontHide",
+          "includeAll": false,
+          "multi": false,
+          "name": "detail_level",
+          "options": [
+            {
+              "selected": false,
+              "text": "type",
+              "value": "type"
+            },
+            {
+              "selected": true,
+              "text": "library",
+              "value": "library"
+            }
+          ],
+          "query": "type,library",
+          "skipUrlSync": false
+        }
+      }
+    ]
+  },
+  "status": {}
+}
