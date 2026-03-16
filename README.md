@@ -63,7 +63,7 @@ docker run -d \
   -e POSTGRES_USER=tautulli \
   -e POSTGRES_PASSWORD=your_secure_password \
   -e TAUTULLI_DB=/tautulli/tautulli.db \
-  -v /path/to/tautulli/appdata:/tautulli:ro \
+  -v /path/to/appdata/tautulli:/tautulli:ro \
   -v /path/to/logs:/logs \
   ghcr.io/yourusername/tautulli-postgres-sync:latest
 ```
