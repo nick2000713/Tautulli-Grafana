@@ -14,10 +14,20 @@ Syncs your Tautulli Plex watch history from SQLite into PostgreSQL so you can vi
 
 ## How It Works
 
-The container mounts your Tautulli SQLite database (read-only), connects to your existing PostgreSQL instance, and syncs all watch history into normalized tables. On first run it imports everything; every run after that only fetches new rows using the last synced row ID.
+On Unraid, a User Script (`unraid-sync.sh`) runs on schedule. It safely copies the live Tautulli SQLite database, starts the Docker sync container, waits for the sync to finish, then stops the container again. The Python script inside the container connects to PostgreSQL and only imports rows that are newer than the last sync — so after the initial full import, every subsequent run is fast.
 
 ```
-Tautulli SQLite DB  →  [this container]  →  PostgreSQL  →  Grafana
+unraid-sync.sh (User Script, scheduled)
+       │
+       ├─ 1. Safe SQLite backup  →  /appdata/tautull_sync/db/tautulli.db
+       │
+       ├─ 2. docker start tautulli-postgres
+       │         │
+       │         └─ tautulli_postgres_sync.py  →  PostgreSQL
+       │
+       └─ 3. docker stop tautulli-postgres
+                                        │
+                                   Grafana reads from PostgreSQL
 ```
 
 ---
@@ -166,9 +176,11 @@ Two ready-to-import dashboard files are included:
 
 ---
 
-## Unraid
+## Unraid Setup
 
-In the Unraid Docker tab, add a new container with these settings:
+### Step 1 — Create the Docker container
+
+In the Unraid Docker tab, add a new container. Set `--restart` to **Unless Stopped** and configure these variables and paths:
 
 | Field | Value |
 |-------|-------|
@@ -176,14 +188,38 @@ In the Unraid Docker tab, add a new container with these settings:
 | Network type | `bridge` |
 | Variable `POSTGRES_HOST` | IP of your Unraid server |
 | Variable `POSTGRES_PASSWORD` | Your PostgreSQL password |
-| Path `/data` | Host path to your Tautulli appdata folder |
-| Path `/logs` | Where you want sync logs stored |
+| Path `/data` | `/mnt/user/appdata/tautull_sync/db` |
+| Path `/logs` | `/mnt/user/appdata/tautull_sync/logs` |
 
-The first run performs a full import of all historical data. With several years of history this can take a few minutes. Watch progress with:
+> Important: do **not** mount the Tautulli appdata folder directly. The User Script copies the DB to a safe working directory first (see Step 2). Mount that working directory here.
+
+### Step 2 — Set up the User Script
+
+The included `unraid-sync.sh` is the scheduler glue. It safely copies the live Tautulli DB (using SQLite's built-in backup command so it never conflicts with a running Tautulli), starts the container, waits for the sync, then stops the container.
+
+1. Install the **User Scripts** plugin from Community Apps
+2. Create a new script, paste the contents of `unraid-sync.sh`
+3. Adjust the three paths at the top of the script to match your setup:
 
 ```bash
-docker logs tautulli-postgres-sync -f
+SOURCE_DB="/mnt/user/appdata/tautulli/tautulli.db"   # your Tautulli DB
+DEST_DB="/mnt/user/appdata/tautull_sync/db/tautulli.db"  # working copy (matches Docker mount)
+SYNC_CONTAINER="tautulli-postgres"                    # your container name
 ```
+
+4. Set the schedule — daily at 3:00 AM works well (`0 3 * * *`)
+
+The script logs everything to `/mnt/user/appdata/tautull_sync/logs/unraid-sync.log`.
+
+### Step 3 — First run
+
+Click **Run Script** manually the first time. A full import of years of watch history can take several minutes. Watch progress in the log file or with:
+
+```bash
+docker logs tautulli-postgres -f
+```
+
+All subsequent scheduled runs are incremental and typically finish in seconds.
 
 ---
 
@@ -213,3 +249,20 @@ Normal behavior — a full historical import takes time proportional to how many
 
 **"Permission denied" on SQLite**
 The volume is mounted `:ro` (read-only), which is intentional and sufficient. If Tautulli has an exclusive write lock on the DB at the exact moment the sync runs, simply retry — the sync will pick up where it left off.
+
+---
+
+## Project Structure
+
+```
+tautulli-postgres-sync/
+├── Dockerfile                    # Container definition
+├── tautulli_postgres_sync.py     # Main sync script (runs inside Docker)
+├── unraid-sync.sh                # Unraid User Script — safe DB copy + container orchestration
+├── Tautulli 16_9-*.json          # Grafana dashboard (16:9 layout)
+├── dashboard-*.json              # Grafana dashboard (Grafana 10+ format)
+├── preview-overview.png
+├── preview-charts.png
+├── .gitignore
+└── README.md
+```
