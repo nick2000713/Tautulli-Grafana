@@ -10,12 +10,15 @@ RUN apt-get update && \
 RUN pip install --no-cache-dir psycopg2-binary
 
 # Create directories
-RUN mkdir -p /app /data /logs /config
+# /tautulli  — mount your Tautulli appdata folder here (read-only)
+# /data      — used by the optional unraid-sync.sh pre-copy approach
+# /logs      — sync logs
+# /config    — optional user_mapping.json
+RUN mkdir -p /app /tautulli /data /logs /config
 
 # Copy sync script
 COPY tautulli_postgres_sync.py /app/sync.py
 
-# Make script executable
 RUN chmod +x /app/sync.py
 
 # Create cron job (runs daily at 2 AM)
@@ -34,5 +37,4 @@ cron && tail -f /logs/sync.log' > /entrypoint.sh && \
 
 WORKDIR /app
 
-# Run entrypoint
 CMD ["/entrypoint.sh"]
